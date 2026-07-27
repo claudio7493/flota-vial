@@ -1,739 +1,148 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="theme-color" content="#6B1A2A">
-<title>Carga de Combustible</title>
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
-<style>
-:root {
-  --bordo:#6B1A2A;--bordo2:#8B2233;--bbg:rgba(107,26,42,0.07);
-  --bg:#ffffff;--bg2:#f7f4f4;--bg3:#ede8e8;
-  --line:#e8e0e0;--line2:#d4c8c8;
-  --t0:#1a0d0f;--t1:#5a3a3f;--t2:#9a7a80;
-  --green:#2a7d4f;--gbg:#eaf5ef;
-  --amber:#a06000;--abg:#fff5e0;
-  --red:#c0392b;--rbg:#fdecea;
-  --blue:#1a5fa5;--bluebg:#eaf1fb;
-  --r:10px;--rlg:14px;
-  --sans:'DM Sans',sans-serif;--mono:'DM Mono',monospace;
-  --safe:env(safe-area-inset-bottom,0px);
-}
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-html,body{height:100%;background:var(--bg2);color:var(--t0);font-family:var(--sans);-webkit-tap-highlight-color:transparent;overscroll-behavior:none}
-body{display:flex;flex-direction:column;max-width:520px;margin:0 auto}
+// ================================================================
+//  CONTROL DE FLOTA VIAL — Módulo Combustible
+//  Agregá este código al final del archivo Code.gs existente
+//  (NO borres el código que ya tenés — pegá esto al final)
+// ================================================================
 
-.hdr{background:var(--bordo);padding:13px 16px;display:flex;align-items:center;gap:11px;position:sticky;top:0;z-index:30;flex-shrink:0;box-shadow:0 2px 8px rgba(107,26,42,0.18)}
-.hdr-logo{width:36px;height:36px;background:rgba(255,255,255,0.15);border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.hdr-logo svg{width:22px;height:22px;fill:none;stroke:#fff;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
-.hdr-info h1{font-size:15px;font-weight:600;color:#fff}
-.hdr-info p{font-size:11px;color:rgba(255,255,255,0.6);font-family:var(--mono);margin-top:1px}
-.hdr-conn{margin-left:auto;width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,0.3);flex-shrink:0;transition:background 0.4s}
-.hdr-conn.ok{background:#6ee7a0;box-shadow:0 0 6px #6ee7a0}
-.hdr-conn.err{background:#fca5a5;box-shadow:0 0 6px #fca5a5}
+var SHEET_COMB = "COMBUSTIBLE";
 
-.tabs{display:flex;background:var(--bg);border-bottom:2px solid var(--line);position:sticky;top:62px;z-index:29;flex-shrink:0}
-.tab{flex:1;padding:9px 4px 7px;background:none;border:none;cursor:pointer;color:var(--t2);font-family:var(--sans);font-size:11px;font-weight:500;display:flex;flex-direction:column;align-items:center;gap:3px;border-bottom:2px solid transparent;margin-bottom:-2px;transition:color 0.15s,border-color 0.15s}
-.tab svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
-.tab.on{color:var(--bordo);border-bottom-color:var(--bordo);font-weight:600}
+var COLS_COMB = [
+  "FECHA REGISTRO",
+  "FECHA CARGA",
+  "HORA",
+  "INTERNO/CÓDIGO",
+  "DESCRIPCIÓN",
+  "TIPO MEDICIÓN",
+  "HS / KM ACTUALES",
+  "LITROS CARGADOS",
+  "OBSERVACIONES"
+];
 
-.pane{overflow-y:auto;flex:1;padding-bottom:calc(16px + var(--safe))}
-.sec{padding:14px 16px}
-.card{background:var(--bg);border-radius:var(--rlg);border:1px solid var(--line);padding:14px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,0.04)}
-.sec-title{font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#fff;font-family:var(--mono);margin-bottom:10px;background:var(--bordo);padding:5px 10px;border-radius:6px;display:inline-block}
+// ── Modificá el doPost existente para que detecte el tipo ──────
+// REEMPLAZÁ tu función doPost actual por esta versión mejorada:
 
-.field{margin-bottom:12px}
-.field label{display:block;font-size:12px;color:var(--t1);margin-bottom:5px;font-weight:500}
-.field label .req{color:var(--red)}
-.field input,.field select,.field textarea{width:100%;background:var(--bg);color:var(--t0);border:1px solid var(--line2);border-radius:var(--r);padding:11px 13px;font-size:15px;font-family:var(--sans);outline:none;transition:border-color 0.15s;-webkit-appearance:none;appearance:none}
-.field input:focus,.field select:focus{border-color:var(--bordo);box-shadow:0 0 0 3px var(--bbg)}
-.field input::placeholder{color:var(--t2)}
-.field select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239a7a80' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:36px}
-.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-
-.tog-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:12px}
-.tog{padding:10px 6px;background:var(--bg);border:1.5px solid var(--line2);border-radius:var(--r);color:var(--t1);font-size:13px;font-weight:500;font-family:var(--sans);cursor:pointer;text-align:center;transition:all 0.15s;user-select:none}
-.tog:active{transform:scale(0.97)}
-.tog.g{background:var(--gbg);border-color:var(--green);color:var(--green);font-weight:600}
-.tog.b{background:var(--bluebg);border-color:var(--blue);color:var(--blue);font-weight:600}
-
-.btn-main{width:100%;padding:14px;background:var(--bordo);color:#fff;border:none;border-radius:var(--r);font-size:15px;font-weight:600;font-family:var(--sans);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:9px;margin-top:6px;transition:opacity 0.15s;box-shadow:0 2px 8px rgba(107,26,42,0.2)}
-.btn-main:active{opacity:0.88}
-.btn-main:disabled{opacity:0.45;pointer-events:none}
-.btn-main .spin{width:18px;height:18px;border:2px solid rgba(255,255,255,0.35);border-top-color:#fff;border-radius:50%;animation:spin 0.7s linear infinite;display:none}
-.btn-main.loading .spin{display:block}
-.btn-main.loading .lbl{display:none}
-.btn-sec{width:100%;padding:12px;background:var(--bg);color:var(--t1);border:1.5px solid var(--line2);border-radius:var(--r);font-size:14px;font-family:var(--sans);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;margin-top:8px;transition:border-color 0.15s}
-.btn-sec:active{border-color:var(--bordo)}
-.btn-scan{width:100%;padding:13px;background:var(--bg);color:var(--bordo);border:2px dashed var(--bordo);border-radius:var(--r);font-size:14px;font-weight:600;font-family:var(--sans);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:9px;margin-bottom:12px;transition:all 0.15s}
-.btn-scan:active{background:var(--bbg)}
-.btn-scan svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
-@keyframes spin{to{transform:rotate(360deg)}}
-
-.ibox{background:var(--bluebg);border:1px solid #c5d9f0;border-radius:var(--r);padding:11px 13px;font-size:13px;color:var(--blue);line-height:1.55;display:flex;gap:10px;align-items:flex-start;margin-bottom:14px}
-.ibox svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;flex-shrink:0;margin-top:1px}
-
-.stat-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px}
-.stat-card{background:var(--bg);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px}
-.stat-card .v{font-size:24px;font-weight:600;font-family:var(--mono);color:var(--bordo)}
-.stat-card .l{font-size:11px;color:var(--t2);margin-top:3px}
-
-.hist-item{background:var(--bg);border:1px solid var(--line);border-radius:var(--rlg);padding:13px 14px;margin-bottom:8px;box-shadow:0 1px 3px rgba(0,0,0,0.04)}
-.hi-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px}
-.hi-code{font-family:var(--mono);font-size:14px;color:var(--bordo);font-weight:600}
-.hi-meta{display:flex;gap:10px;flex-wrap:wrap;font-size:12px;color:var(--t1);margin-top:4px}
-.hi-sync{font-size:10px;font-family:var(--mono);margin-top:6px;padding-top:6px;border-top:1px solid var(--line);display:flex;align-items:center;gap:5px}
-.dot-ok{width:6px;height:6px;border-radius:50%;background:var(--green);flex-shrink:0}
-.dot-pen{width:6px;height:6px;border-radius:50%;background:var(--amber);flex-shrink:0}
-.badge{font-size:10px;font-weight:600;padding:2px 9px;border-radius:20px;white-space:nowrap}
-.bg{background:var(--gbg);color:var(--green)}
-.bb{background:var(--bluebg);color:var(--blue)}
-
-.sbar{display:flex;align-items:center;gap:8px;background:var(--bg);border:1.5px solid var(--line2);border-radius:var(--r);padding:9px 13px;margin-bottom:12px}
-.sbar svg{width:17px;height:17px;fill:none;stroke:var(--t2);stroke-width:2;stroke-linecap:round;flex-shrink:0}
-.sbar input{border:none;background:none;font-size:14px;color:var(--t0);flex:1;outline:none;font-family:var(--sans)}
-.sbar input::placeholder{color:var(--t2)}
-
-.empty{text-align:center;padding:40px 20px;color:var(--t2)}
-.empty svg{width:44px;height:44px;fill:none;stroke:currentColor;stroke-width:1.2;stroke-linecap:round;margin:0 auto 10px;opacity:0.3;display:block}
-
-/* EQUIPO IDENTIFICADO */
-.equipo-banner{background:var(--bordo);border-radius:var(--r);padding:12px 14px;margin-bottom:12px;display:flex;align-items:center;gap:10px}
-.equipo-banner svg{width:20px;height:20px;fill:none;stroke:#fff;stroke-width:1.8;stroke-linecap:round;flex-shrink:0}
-.equipo-banner-info .code{font-family:var(--mono);font-size:15px;font-weight:600;color:#fff}
-.equipo-banner-info .desc{font-size:12px;color:rgba(255,255,255,0.7);margin-top:1px}
-.btn-cambiar{margin-left:auto;background:rgba(255,255,255,0.2);border:none;color:#fff;padding:6px 10px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;font-family:var(--sans);white-space:nowrap}
-
-/* SCANNER */
-.scanner-overlay{position:fixed;inset:0;background:#000;z-index:200;display:flex;flex-direction:column}
-.scanner-header{background:var(--bordo);padding:14px 16px;display:flex;align-items:center;gap:10px;flex-shrink:0}
-.scanner-header h2{color:#fff;font-size:16px;font-weight:600;flex:1}
-.scanner-close{background:rgba(255,255,255,0.2);border:none;color:#fff;width:32px;height:32px;border-radius:50%;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center}
-.scanner-body{flex:1;position:relative;overflow:hidden}
-#scanner-video{width:100%;height:100%;object-fit:cover}
-.scanner-frame{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}
-.scanner-box{width:240px;height:240px;position:relative}
-.scanner-box::before,.scanner-box::after{content:'';position:absolute;width:40px;height:40px;border-color:#fff;border-style:solid}
-.scanner-box::before{top:0;left:0;border-width:3px 0 0 3px;border-radius:4px 0 0 0}
-.scanner-box::after{bottom:0;right:0;border-width:0 3px 3px 0;border-radius:0 0 4px 0}
-.scanner-corner-tr{position:absolute;top:0;right:0;width:40px;height:40px;border-color:#fff;border-style:solid;border-width:3px 3px 0 0;border-radius:0 4px 0 0}
-.scanner-corner-bl{position:absolute;bottom:0;left:0;width:40px;height:40px;border-color:#fff;border-style:solid;border-width:0 0 3px 3px;border-radius:0 0 0 4px}
-.scanner-line{position:absolute;left:10%;right:10%;height:2px;background:var(--bordo);box-shadow:0 0 6px var(--bordo);animation:scan 2s linear infinite}
-@keyframes scan{0%{top:10%}50%{top:90%}100%{top:10%}}
-.scanner-hint{position:absolute;bottom:30px;left:0;right:0;text-align:center;color:rgba(255,255,255,0.8);font-size:13px;font-family:var(--sans)}
-
-/* QR LIST */
-.equipo-item{background:var(--bg);border:1px solid var(--line);border-radius:var(--rlg);padding:13px 14px;margin-bottom:8px;display:flex;align-items:center;gap:12px}
-.equipo-info{flex:1;min-width:0}
-.equipo-codigo{font-family:var(--mono);font-size:14px;color:var(--bordo);font-weight:600}
-.equipo-desc{font-size:12px;color:var(--t1);margin-top:2px}
-.equipo-tipo{font-size:11px;font-family:var(--mono);color:var(--t2);margin-top:2px}
-.btn-qr{padding:8px 14px;background:var(--bordo);color:#fff;border:none;border-radius:var(--r);font-size:12px;font-weight:600;font-family:var(--sans);cursor:pointer;white-space:nowrap;flex-shrink:0}
-
-/* MODAL QR */
-.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:100;display:flex;align-items:center;justify-content:center;padding:20px}
-.modal{background:var(--bg);border-radius:var(--rlg);padding:24px;max-width:320px;width:100%;text-align:center}
-.modal h3{font-size:16px;font-weight:600;color:var(--bordo);margin-bottom:4px}
-.modal p{font-size:12px;color:var(--t2);margin-bottom:16px;font-family:var(--mono)}
-#qr-container{display:flex;justify-content:center;margin-bottom:16px}
-#qr-container canvas,#qr-container img{border-radius:8px;border:3px solid var(--bordo)}
-.modal-btns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.modal-btn{padding:10px;border-radius:var(--r);font-size:13px;font-weight:600;font-family:var(--sans);cursor:pointer;border:none}
-.modal-btn.primary{background:var(--bordo);color:#fff}
-.modal-btn.secondary{background:var(--bg3);color:var(--t1)}
-
-.guide-step{display:flex;gap:12px;align-items:flex-start;padding:11px 0;border-bottom:1px solid var(--line)}
-.guide-step:last-child{border-bottom:none}
-.gnum{width:24px;height:24px;border-radius:50%;background:var(--bordo);color:#fff;font-family:var(--mono);font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.gtxt{font-size:13px;color:var(--t1);line-height:1.6}
-.gtxt strong{color:var(--t0)}
-
-.toast{position:fixed;bottom:calc(20px + var(--safe));left:50%;transform:translateX(-50%);background:var(--t0);color:#fff;padding:11px 20px;border-radius:30px;font-size:13px;display:none;align-items:center;gap:8px;z-index:999;white-space:nowrap;box-shadow:0 4px 20px rgba(0,0,0,0.2)}
-.toast.on{display:flex;animation:fu 0.22s ease}
-.toast svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;flex-shrink:0}
-@keyframes fu{from{opacity:0;transform:translateX(-50%) translateY(8px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
-</style>
-</head>
-<body>
-
-<header class="hdr">
-  <div class="hdr-logo">
-    <svg viewBox="0 0 24 24"><path d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm-8 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/></svg>
-  </div>
-  <div class="hdr-info">
-    <h1>Carga de Combustible</h1>
-    <p id="conn-label">sin conectar</p>
-  </div>
-  <div class="hdr-conn" id="conn-dot"></div>
-</header>
-
-<nav class="tabs">
-  <button class="tab on" onclick="showTab('cargar')" id="tab-cargar">
-    <svg viewBox="0 0 24 24"><path d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm-8 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/></svg>
-    Cargar
-  </button>
-  <button class="tab" onclick="showTab('historial')" id="tab-historial">
-    <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
-    Historial
-  </button>
-  <button class="tab" onclick="showTab('qr')" id="tab-qr">
-    <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3h-3zM17 17h3v3h-3zM14 20h3"/></svg>
-    QR
-  </button>
-  <button class="tab" onclick="showTab('config')" id="tab-config">
-    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
-    Config
-  </button>
-</nav>
-
-<!-- CARGAR -->
-<div id="pane-cargar" class="pane">
-  <div class="sec">
-
-    <!-- Banner equipo identificado -->
-    <div id="equipo-banner-wrap" style="display:none"></div>
-
-    <!-- Botón escanear QR -->
-    <button class="btn-scan" onclick="abrirScanner()" id="btn-scan-qr">
-      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3h-3zM17 17h3v3h-3zM14 20h3"/></svg>
-      Escanear QR del equipo
-    </button>
-
-    <div class="card">
-      <p class="sec-title">Equipo</p>
-      <div class="field">
-        <label>Código / Nº Interno <span class="req">*</span></label>
-        <input id="f-codigo" type="text" placeholder="O escribí el código manualmente">
-      </div>
-      <div class="field" style="margin-bottom:4px">
-        <label>Descripción</label>
-        <input id="f-desc" type="text" placeholder="Se completa al escanear el QR">
-      </div>
-      <p style="font-size:11px;color:var(--t2);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:7px;margin-top:10px">Tipo de medición</p>
-      <div class="tog-grid-2">
-        <button class="tog" onclick="togTipo('HORAS')" id="t-horas">⏱ HORAS</button>
-        <button class="tog" onclick="togTipo('KM')"    id="t-km">🛣 KM</button>
-      </div>
-    </div>
-
-    <div class="card">
-      <p class="sec-title">Medición actual</p>
-      <div class="field">
-        <label id="lbl-medicion">Horas / Km actuales <span class="req">*</span></label>
-        <input id="f-medicion" type="number" placeholder="Ingresá el valor actual" inputmode="numeric">
-      </div>
-      <div class="field" style="margin-bottom:0">
-        <label>Litros cargados <span class="req">*</span></label>
-        <input id="f-litros" type="number" placeholder="150" inputmode="decimal" step="0.1">
-      </div>
-    </div>
-
-    <div class="card">
-      <p class="sec-title">Fecha y hora</p>
-      <div class="row2">
-        <div class="field">
-          <label>Fecha <span class="req">*</span></label>
-          <input id="f-fecha" type="date">
-        </div>
-        <div class="field">
-          <label>Hora</label>
-          <input id="f-hora" type="time">
-        </div>
-      </div>
-      <div class="field" style="margin-bottom:0">
-        <label>Observaciones</label>
-        <input id="f-obs" type="text" placeholder="Notas opcionales...">
-      </div>
-    </div>
-
-    <button class="btn-main" id="btn-enviar" onclick="enviar()">
-      <div class="spin"></div>
-      <span class="lbl">
-        <svg style="width:18px;height:18px;fill:none;stroke:#fff;stroke-width:2;stroke-linecap:round;vertical-align:-3px" viewBox="0 0 24 24"><path d="m22 2-11 11M22 2 15 22l-4-9-9-4 20-7z"/></svg>
-        Registrar carga
-      </span>
-    </button>
-    <button class="btn-sec" onclick="limpiarForm()">
-      <svg style="width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
-      Limpiar
-    </button>
-  </div>
-</div>
-
-<!-- HISTORIAL -->
-<div id="pane-historial" class="pane" style="display:none">
-  <div class="sec">
-    <div class="stat-row">
-      <div class="stat-card"><div class="v" id="st-total">0</div><div class="l">Cargas registradas</div></div>
-      <div class="stat-card"><div class="v" id="st-pend" style="color:var(--amber)">0</div><div class="l">Pendientes sync</div></div>
-    </div>
-    <button class="btn-sec" onclick="reenviarPendientes()" style="margin-bottom:12px;margin-top:0">
-      <svg style="width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round" viewBox="0 0 24 24"><path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
-      Reenviar pendientes
-    </button>
-    <div class="sbar">
-      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-      <input type="text" placeholder="Buscar por equipo..." id="search-in" oninput="renderHistorial()">
-    </div>
-    <div id="hist-list"></div>
-  </div>
-</div>
-
-<!-- QR -->
-<div id="pane-qr" class="pane" style="display:none">
-  <div class="sec">
-    <div class="ibox">
-      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
-      <div>Agregá cada equipo, generá su QR, imprimilo y pegalo en la cabina. El operador lo escanea desde la pestaña <strong>Cargar</strong>.</div>
-    </div>
-    <div class="card">
-      <p class="sec-title">Agregar equipo</p>
-      <div class="row2" style="margin-top:10px">
-        <div class="field">
-          <label>Código <span class="req">*</span></label>
-          <input id="eq-codigo" type="text" placeholder="FL-0001">
-        </div>
-        <div class="field">
-          <label>Tipo</label>
-          <select id="eq-tipo">
-            <option value="HORAS">⏱ Horas</option>
-            <option value="KM">🛣 Km</option>
-          </select>
-        </div>
-      </div>
-      <div class="field" style="margin-bottom:0">
-        <label>Descripción</label>
-        <input id="eq-desc" type="text" placeholder="Volvo EC210DL">
-      </div>
-      <button class="btn-main" onclick="agregarEquipo()" style="margin-top:12px">
-        <span class="lbl">Agregar y generar QR</span>
-      </button>
-    </div>
-    <p class="sec-title" style="margin-bottom:10px">Equipos registrados</p>
-    <div id="equipos-list"></div>
-  </div>
-</div>
-
-<!-- CONFIG -->
-<div id="pane-config" class="pane" style="display:none">
-  <div class="sec">
-    <div class="card">
-      <p class="sec-title">URL Google Sheets</p>
-      <div class="ibox" style="margin-top:10px">
-        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
-        <div>Usá la <strong>misma URL</strong> que configuraste en la app de Flota Vial.</div>
-      </div>
-      <div class="field">
-        <label>URL del Web App</label>
-        <input id="cfg-url" type="url" placeholder="https://script.google.com/macros/s/..." style="font-family:var(--mono);font-size:12px">
-      </div>
-      <button class="btn-main" onclick="guardarConfig()">
-        <span class="lbl">Guardar y verificar</span>
-      </button>
-    </div>
-
-    <div class="card">
-      <p class="sec-title">Cómo usar los QR</p>
-      <div style="margin-top:10px">
-        <div class="guide-step"><div class="gnum">1</div><div class="gtxt"><strong>Pestaña QR</strong> — Agregá cada equipo con su código y tipo.</div></div>
-        <div class="guide-step"><div class="gnum">2</div><div class="gtxt"><strong>Ver QR → Guardar</strong> — Descargá la imagen, imprimila y pegala en la cabina.</div></div>
-        <div class="guide-step"><div class="gnum">3</div><div class="gtxt"><strong>Escanear</strong> — El operador toca "Escanear QR del equipo", apunta la cámara al QR y el formulario se completa solo.</div></div>
-        <div class="guide-step"><div class="gnum">4</div><div class="gtxt"><strong>Cargar</strong> — Solo ingresa horas/km y litros. Toca Registrar y queda en Google Sheets.</div></div>
-      </div>
-    </div>
-
-    <button class="btn-sec" style="color:var(--red);border-color:#f5c6c6;margin-top:8px" onclick="if(confirm('¿Borrar historial local?')){localStorage.removeItem('comb_hist');renderHistorial();toast('Historial borrado','ok')}">
-      <svg style="width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
-      Borrar historial local
-    </button>
-  </div>
-</div>
-
-<!-- SCANNER OVERLAY -->
-<div id="scanner-overlay" class="scanner-overlay" style="display:none">
-  <div class="scanner-header">
-    <svg style="width:22px;height:22px;fill:none;stroke:#fff;stroke-width:1.8;stroke-linecap:round" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3h-3zM17 17h3v3h-3zM14 20h3"/></svg>
-    <h2>Escaneá el QR del equipo</h2>
-    <button class="scanner-close" onclick="cerrarScanner()">✕</button>
-  </div>
-  <div class="scanner-body">
-    <video id="scanner-video" playsinline autoplay muted></video>
-    <canvas id="scanner-canvas" style="display:none"></canvas>
-    <div class="scanner-frame">
-      <div class="scanner-box">
-        <div class="scanner-corner-tr"></div>
-        <div class="scanner-corner-bl"></div>
-        <div class="scanner-line"></div>
-      </div>
-    </div>
-    <div class="scanner-hint">Apuntá la cámara al código QR</div>
-  </div>
-</div>
-
-<!-- MODAL QR -->
-<div class="modal-overlay" id="modal-qr" style="display:none" onclick="if(event.target===this)cerrarModal()">
-  <div class="modal">
-    <h3 id="modal-title">QR Equipo</h3>
-    <p id="modal-sub">Escaneá para cargar combustible</p>
-    <div id="qr-container"></div>
-    <div class="modal-btns">
-      <button class="modal-btn secondary" onclick="cerrarModal()">Cerrar</button>
-      <button class="modal-btn primary" onclick="descargarQR()">💾 Guardar</button>
-    </div>
-  </div>
-</div>
-
-<div class="toast" id="toast-el">
-  <svg id="toast-ico" viewBox="0 0 24 24"></svg>
-  <span id="toast-txt"></span>
-</div>
-
-<script>
-// ── State ────────────────────────────────────────────────────
-let tipoMedicion = '';
-let qrActual = null;
-let codigoQRActual = '';
-let scannerStream = null;
-let scannerInterval = null;
-
-const g = id => (document.getElementById(id)?.value||'').trim();
-const hist    = () => JSON.parse(localStorage.getItem('comb_hist')||'[]');
-const saveH   = d  => localStorage.setItem('comb_hist', JSON.stringify(d));
-const equipos = () => JSON.parse(localStorage.getItem('comb_equipos')||'[]');
-const saveEq  = d  => localStorage.setItem('comb_equipos', JSON.stringify(d));
-const scriptUrl = () => localStorage.getItem('flota_url')||'';
-
-// ── Init ─────────────────────────────────────────────────────
-window.onload = () => {
-  const url = scriptUrl();
-  if(url) document.getElementById('cfg-url').value = url;
-  checkConn(url);
-  setFechaHora();
-  renderHistorial();
-  renderEquipos();
-
-  // Auto-completar descripción al salir del campo código
-  document.getElementById('f-codigo').addEventListener('blur', function() {
-    const eq = equipos().find(e => e.codigo === this.value.trim().toUpperCase());
-    if(eq) precargarEquipo(eq);
-  });
-};
-
-function setFechaHora() {
-  const now = new Date();
-  document.getElementById('f-fecha').value = now.toISOString().slice(0,10);
-  document.getElementById('f-hora').value  = now.toTimeString().slice(0,5);
-}
-
-function precargarEquipo(eq) {
-  document.getElementById('f-codigo').value = eq.codigo;
-  document.getElementById('f-desc').value   = eq.desc||'';
-  if(eq.tipo) togTipo(eq.tipo);
-
-  const wrap = document.getElementById('equipo-banner-wrap');
-  wrap.style.display = '';
-  wrap.innerHTML = `<div class="equipo-banner">
-    <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3h-3zM17 17h3v3h-3zM14 20h3"/></svg>
-    <div class="equipo-banner-info">
-      <div class="code">${eq.codigo}</div>
-      <div class="desc">${eq.desc||''} · ${eq.tipo==='HORAS'?'⏱ Horas':'🛣 Km'}</div>
-    </div>
-    <button class="btn-cambiar" onclick="limpiarEquipo()">Cambiar</button>
-  </div>`;
-  document.getElementById('btn-scan-qr').style.display = 'none';
-}
-
-function limpiarEquipo() {
-  document.getElementById('f-codigo').value = '';
-  document.getElementById('f-desc').value   = '';
-  tipoMedicion = '';
-  document.getElementById('t-horas').className = 'tog';
-  document.getElementById('t-km').className    = 'tog';
-  document.getElementById('equipo-banner-wrap').style.display = 'none';
-  document.getElementById('btn-scan-qr').style.display = '';
-}
-
-// ── SCANNER ───────────────────────────────────────────────────
-async function abrirScanner() {
-  const overlay = document.getElementById('scanner-overlay');
-  overlay.style.display = 'flex';
+function doPost(e) {
+  var response = { status: "error", message: "Error desconocido" };
   try {
-    scannerStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
-    });
-    const video = document.getElementById('scanner-video');
-    video.srcObject = scannerStream;
-    await video.play();
-    scannerInterval = setInterval(escanearFrame, 250);
-  } catch(err) {
-    cerrarScanner();
-    toast('No se pudo acceder a la cámara','err');
+    var data = JSON.parse(e.postData.contents);
+
+    // Detectar si es registro de combustible o de flota
+    if (data.tipo_registro === 'COMBUSTIBLE') {
+      response = registrarCombustible(data);
+    } else {
+      response = registrarFlota(data);
+    }
+
+  } catch (err) {
+    response = { status: "error", message: err.toString() };
+  }
+  return ContentService
+    .createTextOutput(JSON.stringify(response))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+// ── Registrar carga de combustible ────────────────────────────
+function registrarCombustible(data) {
+  var ss    = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(SHEET_COMB);
+
+  if (!sheet) {
+    sheet = ss.insertSheet(SHEET_COMB);
+  }
+
+  // Crear encabezados si está vacía
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(COLS_COMB);
+    var header = sheet.getRange(1, 1, 1, COLS_COMB.length);
+    header.setBackground("#6B1A2A");
+    header.setFontColor("#ffffff");
+    header.setFontWeight("bold");
+    header.setFontSize(10);
+    sheet.setFrozenRows(1);
+    sheet.setColumnWidth(1, 130);
+    sheet.setColumnWidth(2, 100);
+    sheet.setColumnWidth(4, 120);
+    sheet.setColumnWidth(5, 180);
+  }
+
+  var now = new Date();
+  var row = [
+    Utilities.formatDate(now, Session.getScriptTimeZone(), "dd/MM/yyyy HH:mm"),
+    data.fecha        || "",
+    data.hora         || "",
+    data.codigo       || "",
+    data.descripcion  || "",
+    data.tipo_medicion|| "",
+    data.medicion_actual || "",
+    data.litros       || "",
+    data.observaciones|| ""
+  ];
+
+  sheet.appendRow(row);
+
+  // Color de fila alternado
+  var lastRow = sheet.getLastRow();
+  var bg = lastRow % 2 === 0 ? "#fdf5f6" : "#ffffff";
+  sheet.getRange(lastRow, 1, 1, COLS_COMB.length).setBackground(bg);
+
+  // Actualizar hoja FLOTA con la medición actual
+  actualizarMedicionFlota(data.codigo, data.tipo_medicion, data.medicion_actual);
+
+  return { status: "ok", message: "Combustible registrado", row: lastRow };
+}
+
+// ── Actualiza el KM/HS en la hoja FLOTA ───────────────────────
+function actualizarMedicionFlota(codigo, tipo, valor) {
+  if (!codigo || !valor) return;
+  var ss    = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName("FLOTA");
+  if (!sheet || sheet.getLastRow() <= 1) return;
+
+  var data    = sheet.getRange(2, 1, sheet.getLastRow() - 1, 12).getValues();
+  var COL_COD = 1; // Columna B = índice 1
+  var COL_KM  = 11; // Columna L = KILOMETRAJE
+
+  for (var i = 0; i < data.length; i++) {
+    if (String(data[i][COL_COD]).trim().toUpperCase() === codigo.toUpperCase()) {
+      sheet.getRange(i + 2, COL_KM + 1).setValue(valor);
+      break;
+    }
   }
 }
 
-function escanearFrame() {
-  const video  = document.getElementById('scanner-video');
-  const canvas = document.getElementById('scanner-canvas');
-  if(video.readyState !== video.HAVE_ENOUGH_DATA) return;
+// ── Registrar vehículo de flota (función original) ─────────────
+function registrarFlota(data) {
+  var ss    = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(SHEET_NAME);
 
-  canvas.width  = video.videoWidth;
-  canvas.height = video.videoHeight;
-  const ctx = canvas.getContext('2d');
-  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
+  if (!sheet) { sheet = ss.insertSheet(SHEET_NAME); }
 
-  if(code) {
-    cerrarScanner();
-    procesarQR(code.data);
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(COLUMNS);
+    var header = sheet.getRange(1, 1, 1, COLUMNS.length);
+    header.setBackground("#1a3a5c");
+    header.setFontColor("#ffffff");
+    header.setFontWeight("bold");
+    sheet.setFrozenRows(1);
   }
+
+  var now = new Date();
+  var row = [
+    Utilities.formatDate(now, Session.getScriptTimeZone(), "dd/MM/yyyy HH:mm"),
+    data.codigo||"", data.descripcion||"", data.tipo||"", data.marca||"", data.anio||"",
+    data.patente||"", data.n_motor||"", data.n_chasis||"", data.sector||"", data.responsable||"",
+    data.km_actual||"", data.km_ultimo_srv||"", data.km_prox_srv||"",
+    data.f_ultimo_mant||"", data.f_prox_mant||"", data.estado_mant||"",
+    data.f_venc_vtv||"", data.f_venc_rto||"", data.estado_vtv||"", data.estado_rto||"",
+    data.f_venc_seguro||"", data.estado_seguro||"", data.estado_gral||"", data.prioridad||"",
+    data.observaciones||""
+  ];
+
+  sheet.appendRow(row);
+  var lastRow = sheet.getLastRow();
+  var colorMap = {"OPERATIVO":"#e8f5e9","EN TALLER":"#fff8e1","FUERA DE SERVICIO":"#fce4ec","EN REVISIÓN":"#e3f2fd"};
+  sheet.getRange(lastRow, 1, 1, COLUMNS.length).setBackground(colorMap[data.estado_gral]||"#ffffff");
+  colorearUltimaFila(sheet, lastRow);
+
+  return { status: "ok", message: "Registro guardado", row: lastRow };
 }
-
-function cerrarScanner() {
-  clearInterval(scannerInterval);
-  if(scannerStream) { scannerStream.getTracks().forEach(t => t.stop()); scannerStream = null; }
-  document.getElementById('scanner-overlay').style.display = 'none';
-}
-
-function procesarQR(texto) {
-  // El QR contiene el código del equipo directamente
-  // Buscar en equipos guardados
-  const eq = equipos().find(e => e.codigo === texto.trim().toUpperCase() || texto.includes('equipo='+e.codigo));
-  if(eq) {
-    precargarEquipo(eq);
-    toast('Equipo identificado: ' + eq.codigo, 'ok');
-  } else {
-    // Si el código no está en la lista, igual lo precarga
-    document.getElementById('f-codigo').value = texto.trim();
-    toast('Código escaneado: ' + texto.trim(), 'ok');
-  }
-}
-
-// ── Tabs ──────────────────────────────────────────────────────
-function showTab(t) {
-  ['cargar','historial','qr','config'].forEach(p => {
-    document.getElementById('pane-'+p).style.display = p===t?'':'none';
-    document.getElementById('tab-'+p).classList.toggle('on', p===t);
-  });
-  if(t==='historial') renderHistorial();
-  if(t==='qr') renderEquipos();
-}
-
-// ── Toggle tipo ───────────────────────────────────────────────
-function togTipo(v) {
-  tipoMedicion = v;
-  document.getElementById('t-horas').className = 'tog' + (v==='HORAS'?' g':'');
-  document.getElementById('t-km').className    = 'tog' + (v==='KM'?' b':'');
-  document.getElementById('lbl-medicion').innerHTML = (v==='HORAS'?'Horas actuales':'Km actuales') + ' <span class="req">*</span>';
-  document.getElementById('f-medicion').placeholder = v==='HORAS'?'1864':'125000';
-}
-
-// ── Config ────────────────────────────────────────────────────
-function guardarConfig() {
-  const url = document.getElementById('cfg-url').value.trim();
-  if(!url||!url.startsWith('https://script.google.com')) { toast('URL inválida','err'); return; }
-  localStorage.setItem('flota_url', url);
-  toast('Guardado. Verificando...','info');
-  checkConn(url);
-}
-
-async function checkConn(url) {
-  const dot=document.getElementById('conn-dot'), lbl=document.getElementById('conn-label');
-  if(!url){dot.className='hdr-conn';lbl.textContent='sin configurar';return;}
-  try {
-    dot.className='hdr-conn'; lbl.textContent='verificando...';
-    await fetch(url,{method:'GET',mode:'no-cors'});
-    dot.className='hdr-conn ok'; lbl.textContent='conectado ✓';
-  } catch(e) { dot.className='hdr-conn err'; lbl.textContent='error de conexión'; }
-}
-
-// ── Enviar ────────────────────────────────────────────────────
-async function enviar() {
-  const codigo=g('f-codigo'), medicion=g('f-medicion'), litros=g('f-litros'), fecha=g('f-fecha');
-  if(!codigo||!medicion||!litros||!fecha||!tipoMedicion) {
-    toast('Completá todos los campos obligatorios','err'); return;
-  }
-  const url = scriptUrl();
-  if(!url){ toast('Configurá la URL primero','err'); return; }
-
-  const payload = {
-    tipo_registro: 'COMBUSTIBLE',
-    codigo: codigo.toUpperCase(),
-    descripcion: g('f-desc'),
-    tipo_medicion: tipoMedicion,
-    medicion_actual: medicion,
-    litros, fecha,
-    hora: g('f-hora'),
-    observaciones: g('f-obs')
-  };
-
-  const btn = document.getElementById('btn-enviar');
-  btn.classList.add('loading'); btn.disabled = true;
-
-  const entry = {...payload, id: Date.now(), synced: false};
-  const arr = hist(); arr.push(entry); saveH(arr);
-
-  try {
-    await fetch(url,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain'},body:JSON.stringify(payload)});
-    markSynced(entry.id);
-    toast('¡Carga registrada en Sheets!','ok');
-    limpiarForm();
-  } catch(err) {
-    toast('Sin conexión — guardado localmente','warn');
-  } finally {
-    btn.classList.remove('loading'); btn.disabled = false;
-  }
-}
-
-function markSynced(id) {
-  saveH(hist().map(r=>r.id===id?{...r,synced:true}:r));
-}
-
-async function reenviarPendientes() {
-  const url=scriptUrl();
-  if(!url){toast('Configurá la URL primero','err');return;}
-  const pending=hist().filter(r=>!r.synced);
-  if(!pending.length){toast('No hay pendientes','info');return;}
-  let ok=0;
-  for(const r of pending){
-    try{await fetch(url,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain'},body:JSON.stringify(r)});markSynced(r.id);ok++;}catch(e){}
-  }
-  renderHistorial();
-  toast(`${ok} registro/s reenviado/s`,'ok');
-}
-
-function limpiarForm() {
-  ['f-medicion','f-litros','f-obs'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
-  setFechaHora();
-}
-
-// ── Historial ─────────────────────────────────────────────────
-function renderHistorial() {
-  const arr=hist();
-  const q=(document.getElementById('search-in')?.value||'').toLowerCase();
-  const c=document.getElementById('hist-list');
-  document.getElementById('st-total').textContent=arr.length;
-  document.getElementById('st-pend').textContent=arr.filter(r=>!r.synced).length;
-  if(!c)return;
-  const fil=arr.filter(r=>!q||(r.codigo||'').toLowerCase().includes(q));
-  if(!fil.length){
-    c.innerHTML=`<div class="empty"><svg viewBox="0 0 24 24"><path d="M3 3h2l.4 2M7 13h10l4-8H5.4"/></svg><p>${q?'Sin resultados':'Aún no hay cargas'}</p></div>`;
-    return;
-  }
-  c.innerHTML=fil.slice().reverse().map(r=>{
-    const fecha=r.id?new Date(r.id).toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
-    return `<div class="hist-item">
-      <div class="hi-head">
-        <span class="hi-code">${r.codigo}</span>
-        <span class="badge ${r.tipo_medicion==='HORAS'?'bb':'bg'}">${r.tipo_medicion==='HORAS'?'⏱ HORAS':'🛣 KM'}</span>
-      </div>
-      <p style="font-size:13px;color:var(--t1);margin-bottom:4px">${r.descripcion||'—'}</p>
-      <div class="hi-meta">
-        <span>⛽ ${Number(r.litros).toLocaleString('es-AR')} L</span>
-        <span>${r.tipo_medicion==='HORAS'?'⏱':'🛣'} ${Number(r.medicion_actual).toLocaleString('es-AR')} ${r.tipo_medicion==='HORAS'?'hs':'km'}</span>
-        <span>📅 ${r.fecha||''}</span>
-      </div>
-      <div class="hi-sync">
-        <div class="${r.synced?'dot-ok':'dot-pen'}"></div>
-        <span style="color:var(--t2)">${r.synced?'Sincronizado':'Pendiente'} · ${fecha}</span>
-      </div>
-    </div>`;
-  }).join('');
-}
-
-// ── QR ────────────────────────────────────────────────────────
-function agregarEquipo() {
-  const codigo=(document.getElementById('eq-codigo').value||'').trim().toUpperCase();
-  const tipo=document.getElementById('eq-tipo').value;
-  const desc=(document.getElementById('eq-desc').value||'').trim();
-  if(!codigo){toast('Ingresá el código del equipo','err');return;}
-  const arr=equipos();
-  if(arr.find(e=>e.codigo===codigo)){toast('Ese código ya existe','warn');return;}
-  arr.push({codigo,tipo,desc,fecha:new Date().toISOString()});
-  saveEq(arr);
-  document.getElementById('eq-codigo').value='';
-  document.getElementById('eq-desc').value='';
-  renderEquipos();
-  toast('Equipo agregado','ok');
-}
-
-function renderEquipos() {
-  const arr=equipos();
-  const c=document.getElementById('equipos-list');
-  if(!c)return;
-  if(!arr.length){
-    c.innerHTML=`<div class="empty"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg><p>Aún no hay equipos cargados</p></div>`;
-    return;
-  }
-  c.innerHTML=arr.map(e=>`
-    <div class="equipo-item">
-      <div class="equipo-info">
-        <div class="equipo-codigo">${e.codigo}</div>
-        <div class="equipo-desc">${e.desc||'Sin descripción'}</div>
-        <div class="equipo-tipo">${e.tipo==='HORAS'?'⏱ Horas':'🛣 Km'}</div>
-      </div>
-      <button class="btn-qr" onclick="mostrarQR('${e.codigo}','${e.desc||''}','${e.tipo}')">Ver QR</button>
-    </div>
-  `).join('');
-}
-
-function mostrarQR(codigo, desc, tipo) {
-  codigoQRActual = codigo;
-  document.getElementById('modal-title').textContent = codigo;
-  document.getElementById('modal-sub').textContent   = (desc||'') + ' · ' + (tipo==='HORAS'?'⏱ Horas':'🛣 Km');
-
-  const container = document.getElementById('qr-container');
-  container.innerHTML = '';
-  // El QR contiene solo el código del equipo
-  qrActual = new QRCode(container, {
-    text: codigo,
-    width: 220, height: 220,
-    colorDark: '#6B1A2A',
-    colorLight: '#ffffff',
-    correctLevel: QRCode.CorrectLevel.H
-  });
-  document.getElementById('modal-qr').style.display='flex';
-}
-
-function cerrarModal() {
-  document.getElementById('modal-qr').style.display='none';
-  qrActual=null;
-}
-
-function descargarQR() {
-  setTimeout(()=>{
-    const canvas=document.querySelector('#qr-container canvas');
-    const img=document.querySelector('#qr-container img');
-    const src=canvas?canvas.toDataURL('image/png'):(img?img.src:null);
-    if(!src){toast('Error al generar imagen','err');return;}
-    const a=document.createElement('a');
-    a.href=src; a.download='QR_'+codigoQRActual+'.png'; a.click();
-    toast('QR descargado','ok');
-  },300);
-}
-
-// ── Toast ─────────────────────────────────────────────────────
-const icons={
-  ok:'<polyline points="20 6 9 17 4 12"/>',
-  err:'<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>',
-  warn:'<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>',
-  info:'<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/>',
-};
-const colors={ok:'#2a7d4f',err:'#c0392b',warn:'#a06000',info:'#1a5fa5'};
-let toastTmr;
-function toast(msg,type='info'){
-  clearTimeout(toastTmr);
-  document.getElementById('toast-ico').innerHTML=icons[type]||icons.info;
-  document.getElementById('toast-ico').style.stroke=colors[type]||colors.info;
-  document.getElementById('toast-txt').textContent=msg;
-  const el=document.getElementById('toast-el');
-  el.classList.add('on');
-  toastTmr=setTimeout(()=>el.classList.remove('on'),3000);
-}
-</script>
-</body>
-</html>
